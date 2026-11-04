@@ -1,11 +1,17 @@
-# 云吞插件模板
+# OpenClaw
 
-云吞（Wonton）的插件就是一个 `docker-compose.yml`，顶层多一个 `x-wonton` 字段，写明插件在云吞里的身份、网页入口和要的
-权限。一个插件一个 Git 仓库，仓库根目录就是插件包，发布就是打 tag。主人在 App 里装上插件，核心按清单起容器、接好登录，
-插件的网页在 App 里作为小程序打开。
+OpenClaw 是一个住在云吞里的 Agent：用核心分配的 Matrix 身份和主人聊天，经云吞模型网关调用模型，经 Wonton MCP 总线调用核心的只读工具。
 
-这个仓库是模板：一个能装上的示例插件（nginx 显示一个向主人问好的网页），加上检查、开发环境和发布三个脚本。从这个模板
-新建仓库，照着下面把示例换成你的应用。
+插件使用 OpenClaw 官方多架构镜像 `ghcr.io/openclaw/openclaw:2026.10.10`。首次启动由一次性 `init` 服务安装固定版本的官方 `@openclaw/matrix` 插件；OpenClaw 的受管 npm 安装会跳过生命周期脚本，因此 init 随后显式运行 Matrix crypto 的官方 `download-lib.js`，并要求对应平台的 `.node` 原生绑定已经落盘。安装包、原生绑定和 Matrix 加密状态都写在 Bot 数据目录，重启或重建容器不会重新生成设备密钥。
+init 还会用核心注入的访问令牌调用 Matrix `/_matrix/client/v3/account/whoami`，把返回的 `device_id` 写入配置；这样加密客户端使用的设备身份与令牌一致，重启时可继续解密。
+
+原生绑定下载失败时 init 失败，不回退到 WASM 或明文。
+
+OpenClaw 没有网页入口、对外端口、ACP 接口或应用自己的账号登录。核心在安装时创建 Bot 身份和主人的加密私聊；模型凭据、MCP 地址和 Bot 数据路径由核心注入，不写进插件包。
+
+## 图标
+
+`icon.svg` 是本仓库按插件规范手写的 OpenClaw 首字母图标，不使用上游官方标志，也不表示 OpenClaw Foundation 的认可或背书。许可证和依赖声明见 [NOTICE](NOTICE)。
 
 ## 准备
 
@@ -17,38 +23,33 @@
 
 不用装云吞，也不要 root：脚本用发布的核心镜像（`ghcr.io/geraldpeng6/wonton-core`）检查插件、起开发环境。
 
-## 先跑起来
+## 开发与验证
+
+检查插件包并用支持规范 0.4 的核心镜像启动开发环境：
 
 ```bash
-scripts/dev.sh up
+WONTON_CORE_IMAGE=wonton-core:labels-test WONTON_PULL=never scripts/check.sh --official
+WONTON_CORE_IMAGE=wonton-core:labels-test WONTON_PULL=never scripts/dev.sh up
+WONTON_CORE_IMAGE=wonton-core:labels-test WONTON_PULL=never scripts/dev.sh install --yes
 ```
 
-```bash
-scripts/dev.sh install
-```
+OpenClaw 没有网页入口、应用自己的登录或插件自己的 MCP 服务。通用 smoke 的网页、主人身份和插件工具三项标记为 N/A；专项验收要在核心的 Tuwunel 开发环境中验证：加密私聊收发、重启后仍能解密、经模型网关回答一句话、调用一个 Wonton MCP 只读工具。首次下载 Matrix 插件和原生 crypto 绑定需要 `network.egress`；不提供代理时应如实失败，不回退到明文。
 
-`up` 在本机起一套云吞，打印它的地址。示例（实例名取自目录名加 4 位随机数，端口随机）是
-`http://template3f2a.wonton.localhost:21234/`。浏览器打开，用 `scripts/dev.sh token` 输出的主人令牌登录。`install` 先列出
-插件要的权限，确认后装上，打印插件网页的地址。
-
-示例网页经 `sso: proxy` 拿到用户名，打开就是“你好，<用户名>”。换成真实应用时，把示例的 `description`、`about`、`tags`
-换成你的，`web/`、compose 里的两个 `configs` 和 `sso: proxy` 及其 `proxy` 删掉（默认让应用自己登录），`webui.service`、
-`port` 换成你的，按下面的规则重写。Chrome、Firefox 和 curl 把 `*.localhost` 直接解析到本机，不用改 hosts。
+容器里的 shell、文件和其他内置工具不经过 Wonton 确认卡片，只能触碰 Bot 数据目录以及容器自身可见的文件；没有 Docker socket、宿主 shell、网页入口或对外端口。
 
 ## 仓库里有什么
 
 | 路径 | 内容 |
 | --- | --- |
-| `docker-compose.yml` | 插件本身：compose 加上 `x-wonton` 清单 |
-| `icon.svg`、`web/` | 清单和 compose 引用的文件：图标、交给容器的配置和网页 |
-| `screenshots/` | 商店详情页里的截图 |
+| `docker-compose.yml` | 插件本身：Compose 服务和 `x-wonton` 清单 |
+| `icon.svg` | 插件清单的原创首字母图标；来源和许可证见 `NOTICE` |
 | `scripts/check.sh` | 检查插件包，规则和安装时一样 |
 | `scripts/dev.sh` | 开发环境：起一套云吞，装、重装、卸载插件，看日志 |
 | `scripts/smoke-probes.sh` | `scripts/dev.sh smoke` 对这个插件逐项的探测 |
-| `scripts/publish.sh` | 发布一个版本：打 tag、推送；`images/` 里有自己构建的镜像时先构建、推送并按摘要写回（示例没有） |
+| `scripts/publish.sh` | 发布一个版本：打 tag、推送；本插件不自建镜像 |
 | `AGENTS.md` | 给人和 AI 编程代理的规则 |
-| `LICENSE` | 插件包自己的许可证；从模板新建时换成作者自己的名字和年份 |
-| `NOTICE` | 图标等第三方素材的许可和声明；图标是自己画的就写原创和插件许可证，见第 10 步 |
+| `LICENSE` | 插件包自己的 MIT 许可证 |
+| `NOTICE` | 图标、上游镜像和依赖的许可声明 |
 | `.wonton/` | 开发环境的设置、密钥和数据，不提交 |
 
 插件包是 `docker-compose.yml` 加上它引用的文件：`icon`、`settings`、`bot.avatar`、`notices` 和顶层 `configs` 的 `file`。README、
