@@ -25,9 +25,13 @@ services:
       MATRIX_DEVICE_NAME: Wonton OpenClaw
     volumes:
       - ${WONTON_BOT_DATA}:/home/node/.openclaw
+      # 帮助 skill（ADR-0034）要落进 App 数据的 skills 目录；gateway 对它是只读挂载，由 init 以 root 写入。
+      - ${WONTON_APP_DATA}/skills:/wonton-skills
     configs:
       - source: init
         target: /seed/init.sh
+      - source: help-skill
+        target: /seed/wonton-help/SKILL.md
     restart: "no"
 
   gateway:
@@ -175,7 +179,12 @@ configs:
       fi
       node --input-type=module -e 'import fs from "node:fs"; const p="/home/node/.openclaw/openclaw.json"; const c=JSON.parse(fs.readFileSync(p, "utf8")); c.channels ??= {}; c.channels.matrix ??= {}; Object.assign(c.channels.matrix, {homeserver: process.env.MATRIX_HOMESERVER, userId: process.env.MATRIX_USER_ID, accessToken: process.env.MATRIX_ACCESS_TOKEN, deviceId: process.env.MATRIX_DEVICE_ID, deviceName: process.env.MATRIX_DEVICE_NAME}); fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");'
       openclaw config validate
+      # 帮助 skill 是 wonton-docs 的指路条（ADR-0034），放进 App 数据的 skills 目录，gateway 经只读挂载读它。
+      install -D -m 0644 /seed/wonton-help/SKILL.md /wonton-skills/wonton-help/SKILL.md
+      chown -R "$$PUID:$$PGID" /wonton-skills
       chown -R "$$PUID:$$PGID" /home/node/.openclaw
+  help-skill:
+    file: wonton-help/SKILL.md
 
 x-wonton:
   spec: "0.4"
