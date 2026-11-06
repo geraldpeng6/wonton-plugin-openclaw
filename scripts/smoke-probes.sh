@@ -6,24 +6,13 @@ SMOKE_NOTE="OpenClaw 没有网页入口、应用账号体系或插件自己的 M
 
 # 保数据：Agent 的用户数据是 Bot 数据目录（会话、加密密钥、工作区）。没有网页和应用 API，加密私聊要
 # 专用 Matrix 客户端（专项冒烟管）；这里经应用容器把带随机标记的文件写进工作区——agent 的 shell 和
-# 文件工具本来就写这个目录——升级后读回来核对，证明数据目录在升级中原样保留。$SMOKE_STATE 由冒烟
-# 主流程提供；exec 按容器配置的 user（compose 配了 PUID:PGID）跑，和应用同一身份写文件。
-# 变量同时兼容 e2e 冒烟（E2E_*）和仓库自带的 dev.sh smoke（SMOKE_*）；e2e 的 data_write 在装 tag
-# 阶段跑，早于 E2E_INSTANCE/E2E_NAME_ID 的导出点，实例名从 E2E_BASE 推、插件 id 从检出清单读。
+# 文件工具本来就写这个目录——升级后读回来核对，证明数据目录在升级中原样保留。exec 按容器配置的
+# user（compose 配了 PUID:PGID）跑，和应用同一身份写文件。
+# 只用冒烟契约里的 SMOKE_INSTANCE/SMOKE_STATE；网关容器名里的插件 id 是本仓库清单自己的 id。
 oc_gw() {
-  local inst id dir
-  inst="${E2E_INSTANCE:-}${SMOKE_INSTANCE:-}"
-  if [[ -z "$inst" && -n "${E2E_BASE:-}" ]]; then
-    inst="${E2E_BASE#http://}"; inst="${inst%%.*}"   # E2E_BASE=http://<实例名>.wonton.localhost:端口
-  fi
-  id="${E2E_NAME_ID:-}${SMOKE_PLUGIN_ID:-}"
-  if [[ -z "$id" ]]; then
-    dir="${E2E_DIR:-}${SMOKE_DIR:-}"
-    [[ -n "$dir" && -f "$dir/docker-compose.yml" ]] || { echo "拿不到插件 id（主流程变量和检出目录都没有）" >&2; return 1; }
-    id="$(docker compose -f "$dir/docker-compose.yml" config --no-interpolate --format json | jq -r '."x-wonton".id')"
-  fi
-  [[ -n "$inst" && -n "$id" ]] || { echo "拿不到实例名或插件 id" >&2; return 1; }
-  printf 'wonton-%s--%s--gateway\n' "$inst" "${id//./-}"
+  local inst="${SMOKE_INSTANCE:-}"
+  [[ -n "$inst" ]] || { echo "拿不到实例名（SMOKE_INSTANCE）" >&2; return 1; }
+  printf 'wonton-%s--%s--gateway\n' "$inst" "ai-openclaw-agent"
 }
 
 data_write() {
