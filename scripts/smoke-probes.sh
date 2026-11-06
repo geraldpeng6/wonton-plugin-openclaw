@@ -11,7 +11,11 @@ SMOKE_NOTE="OpenClaw 没有网页入口、应用账号体系或插件自己的 M
 # 只用冒烟契约里的 SMOKE_INSTANCE/SMOKE_STATE；网关容器名里的插件 id 是本仓库清单自己的 id。
 oc_gw() {
   local inst="${SMOKE_INSTANCE:-}"
-  [[ -n "$inst" ]] || { echo "拿不到实例名（SMOKE_INSTANCE）" >&2; return 1; }
+  # data_write 在装 tag 阶段跑，主流程可能还没导出 SMOKE_INSTANCE；SMOKE_BASE 那时已有——实例名是其主机名前缀。
+  if [[ -z "$inst" && -n "${SMOKE_BASE:-}" ]]; then
+    inst="${SMOKE_BASE#http://}"; inst="${inst%%.*}"
+  fi
+  [[ -n "$inst" ]] || { echo "拿不到实例名（SMOKE_INSTANCE/SMOKE_BASE 都没有）" >&2; return 1; }
   printf 'wonton-%s--%s--gateway\n' "$inst" "ai-openclaw-agent"
 }
 
