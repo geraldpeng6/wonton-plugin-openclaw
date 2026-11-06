@@ -78,9 +78,14 @@ configs:
       test -n "$$MATRIX_DEVICE_ID"
       config=/home/node/.openclaw/openclaw.json
       mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace
-      if [ ! -s /home/node/.openclaw/.matrix-plugin-installed ]; then
+      # 安装标记存镜像版本：同版本启动不重装（网关运行过之后状态目录有所有权封印，root 重装会被拒），
+      # 换镜像版本时重装以跟上插件版本。标记是普通文件内容，不用 touch（0 字节过不了 -s 判断）。
+      if [ "$$(cat /home/node/.openclaw/.matrix-plugin-installed 2>/dev/null)" != "2026.10.10" ]; then
         install_config=/tmp/openclaw-install.json
         printf '%s\n' '{"gateway":{"mode":"local","bind":"loopback","port":18789},"plugins":{"enabled":true}}' >"$$install_config"
+        # 网关以 PUID 运行并会封印状态目录，root 的 init 装不进去（实测 2026.10.10：目录属主不是
+        # 当前用户就拒绝 plugins install）；安装前收到 root 名下，init 结尾统一 chown 交还。
+        chown -R 0:0 /home/node/.openclaw
         # OpenClaw deliberately installs npm dependencies with --ignore-scripts; run the
         # Matrix SDK downloader explicitly so E2EE has a platform-native .node binding.
         OPENCLAW_CONFIG_PATH="$$install_config" openclaw plugins install npm:@openclaw/matrix@2026.10.10 --pin --force --accept-capabilities
@@ -89,7 +94,7 @@ configs:
         node "$$crypto_script"
         crypto_dir="$$(dirname "$$crypto_script")"
         test -n "$$(find "$$crypto_dir" -maxdepth 1 -name '*.node' -print -quit)"
-        touch /home/node/.openclaw/.matrix-plugin-installed
+        printf '%s\n' "2026.10.10" > /home/node/.openclaw/.matrix-plugin-installed
       fi
       if [ ! -s "$$config" ]; then
         cat >"$$config" <<JSON
