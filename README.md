@@ -4,7 +4,7 @@
 
 OpenClaw 是一个住在云吞里的 Agent：用核心分配的 Matrix 身份和主人聊天，经云吞模型网关调用模型，经 Wonton MCP 总线调用核心的只读工具。
 
-插件使用 OpenClaw 官方多架构镜像 `ghcr.io/openclaw/openclaw:2026.10.10`。首次启动由一次性 `init` 服务安装固定版本的官方 `@openclaw/matrix` 插件；OpenClaw 的受管 npm 安装会跳过生命周期脚本，因此 init 随后显式运行 Matrix crypto 的官方 `download-lib.js`，并要求对应平台的 `.node` 原生绑定已经落盘。安装包、原生绑定和 Matrix 加密状态都写在 Bot 数据目录，重启或重建容器不会重新生成设备密钥。
+插件使用 OpenClaw 官方多架构镜像 `ghcr.io/openclaw/openclaw:2026.11.1`。首次启动由一次性 `init` 服务安装固定版本的官方 `@openclaw/matrix` 插件；OpenClaw 的受管 npm 安装会跳过生命周期脚本，因此 init 随后显式运行 Matrix crypto 的官方 `download-lib.js`，并要求对应平台的 `.node` 原生绑定已经落盘。安装包、原生绑定和 Matrix 加密状态都写在 Bot 数据目录，重启或重建容器不会重新生成设备密钥。
 init 还会用核心注入的访问令牌调用 Matrix `/_matrix/client/v3/account/whoami`，把返回的 `device_id` 写入配置；这样加密客户端使用的设备身份与令牌一致，重启时可继续解密。
 
 原生绑定下载失败时 init 失败，不回退到 WASM 或明文。
