@@ -81,6 +81,8 @@ configs:
       if [ ! -s /home/node/.openclaw/.matrix-plugin-installed ]; then
         install_config=/tmp/openclaw-install.json
         printf '%s\n' '{"gateway":{"mode":"local","bind":"loopback","port":18789},"plugins":{"enabled":true}}' >"$$install_config"
+        # install_config 给下面以 PUID 跑的 plugins install 读：init 用 umask 077，root 写出来是 0600，先交给 PUID。
+        chown "$$PUID:$$PGID" "$$install_config"
         # OpenClaw deliberately installs npm dependencies with --ignore-scripts; run the
         # Matrix SDK downloader explicitly so E2EE has a platform-native .node binding.
         # 2026.11.1 起 CLI 有状态目录所有权守卫（State ownership directory must be a user-owned
