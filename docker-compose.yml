@@ -83,7 +83,11 @@ configs:
         printf '%s\n' '{"gateway":{"mode":"local","bind":"loopback","port":18789},"plugins":{"enabled":true}}' >"$$install_config"
         # OpenClaw deliberately installs npm dependencies with --ignore-scripts; run the
         # Matrix SDK downloader explicitly so E2EE has a platform-native .node binding.
-        OPENCLAW_CONFIG_PATH="$$install_config" openclaw plugins install npm:@openclaw/matrix@2026.11.1 --pin --force --accept-capabilities
+        # 2026.11.1 起 CLI 有状态目录所有权守卫（State ownership directory must be a user-owned
+        # real directory）：重装时状态目录属主是 PUID，root 跑 plugins install 会被拒
+        # （Cannot admit plugins.install）。openclaw CLI 一律以 PUID:PGID 身份跑，实测通过。
+        OPENCLAW_CONFIG_PATH="$$install_config" setpriv --reuid="$PUID" --regid="$PGID" --clear-groups \
+          openclaw plugins install npm:@openclaw/matrix@2026.11.1 --pin --force --accept-capabilities
         crypto_script="$$(find /home/node/.openclaw/npm/projects -type f -path '*/@matrix-org/matrix-sdk-crypto-nodejs/download-lib.js' -print -quit)"
         test -n "$$crypto_script"
         node "$$crypto_script"
@@ -178,7 +182,7 @@ configs:
       JSON
       fi
       node --input-type=module -e 'import fs from "node:fs"; const p="/home/node/.openclaw/openclaw.json"; const c=JSON.parse(fs.readFileSync(p, "utf8")); c.channels ??= {}; c.channels.matrix ??= {}; Object.assign(c.channels.matrix, {homeserver: process.env.MATRIX_HOMESERVER, userId: process.env.MATRIX_USER_ID, accessToken: process.env.MATRIX_ACCESS_TOKEN, deviceId: process.env.MATRIX_DEVICE_ID, deviceName: process.env.MATRIX_DEVICE_NAME}); fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");'
-      openclaw config validate
+      setpriv --reuid="$PUID" --regid="$PGID" --clear-groups openclaw config validate
       # 帮助 skill 是 wonton-docs 的指路条（ADR-0034），放进 App 数据的 skills 目录，gateway 经只读挂载读它。
       install -D -m 0644 /seed/wonton-help/SKILL.md /wonton-skills/wonton-help/SKILL.md
       chown -R "$$PUID:$$PGID" /wonton-skills
