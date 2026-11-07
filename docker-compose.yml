@@ -103,7 +103,8 @@ configs:
         # Matrix SDK downloader explicitly so E2EE has a platform-native .node binding.
         # 2026.11.1 起 CLI 有状态目录所有权守卫（State ownership directory must be a user-owned
         # real directory）：重装时状态目录属主是 PUID，root 跑 plugins install 会被拒
-        # （Cannot admit plugins.install）。openclaw CLI 一律以 PUID:PGID 身份跑，实测通过。
+        # （Cannot admit plugins.install）。plugins install 一律以 PUID:PGID 身份跑，实测通过；
+        # config validate 留在 root——配置是 root 在下面 0600 写出的，降到 PUID 读不了。
         OPENCLAW_CONFIG_PATH="$$install_config" npm_config_cache=/tmp/openclaw-npm-cache setpriv --reuid="$PUID" --regid="$PGID" --clear-groups \
           openclaw plugins install npm:@openclaw/matrix@2026.11.1 --pin --force --accept-capabilities
         crypto_script="$$(find /home/node/.openclaw/npm/projects -type f -path '*/@matrix-org/matrix-sdk-crypto-nodejs/download-lib.js' -print -quit)"
