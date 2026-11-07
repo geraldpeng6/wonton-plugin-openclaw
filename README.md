@@ -2,14 +2,14 @@
 
 开发流程见[插件开发指南](https://github.com/geraldpeng6/wonton-docs/blob/main/develop.md)。
 
-OpenClaw 是一个住在云吞里的 Agent：用核心分配的 Matrix 身份和主人聊天，经云吞模型网关调用模型，经 Wonton MCP 总线调用核心的只读工具。
+OpenClaw 是一个住在云吞里的 Agent：用核心分配的 Matrix 身份和主人聊天，经 Wonton MCP 总线调用核心的只读工具。接了模型网关时模型默认走网关；模型网关是可选的，没接时 Agent 照常启动，只是还没有可用模型，发消息会得到模型未授权的报错（OpenClaw 回落到它内置的默认服务商），网关就绪后核心重建容器即自动接上。OpenClaw 的官方账号登录要在它自己的命令行里完成（Matrix 渠道没有聊天内的登录命令，容器用户也到不了终端），所以没有网关时没有替代的模型来源。
 
 插件使用 OpenClaw 官方多架构镜像 `ghcr.io/openclaw/openclaw:2026.11.1`。首次启动由一次性 `init` 服务安装固定版本的官方 `@openclaw/matrix` 插件；OpenClaw 的受管 npm 安装会跳过生命周期脚本，因此 init 随后显式运行 Matrix crypto 的官方 `download-lib.js`，并要求对应平台的 `.node` 原生绑定已经落盘。安装包、原生绑定和 Matrix 加密状态都写在 Bot 数据目录，重启或重建容器不会重新生成设备密钥。
 init 还会用核心注入的访问令牌调用 Matrix `/_matrix/client/v3/account/whoami`，把返回的 `device_id` 写入配置；这样加密客户端使用的设备身份与令牌一致，重启时可继续解密。
 
 原生绑定下载失败时 init 失败，不回退到 WASM 或明文。
 
-OpenClaw 没有网页入口、对外端口、ACP 接口或应用自己的账号登录。核心在安装时创建 Bot 身份和主人的加密私聊；模型凭据、MCP 地址和 Bot 数据路径由核心注入，不写进插件包。
+OpenClaw 没有网页入口、对外端口、ACP 接口或应用自己的账号登录。核心在安装时创建 Bot 身份和主人的加密私聊；模型凭据、MCP 地址和 Bot 数据路径由核心注入，不写进插件包。网关密钥在配置里只引用变量名，由 OpenClaw 读取配置时从环境替换，不落进数据目录。
 
 ## 开发与验证
 
