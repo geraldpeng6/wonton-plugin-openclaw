@@ -43,6 +43,10 @@ services:
     command: ["node", "/app/dist/index.js", "gateway", "--bind", "loopback", "--port", "18789"]
     environment:
       HOME: /home/node
+      # openclaw 运行时要求私有的 cache/temp 根（uid 属主 0700），默认落在 $HOME/.cache/openclaw-<uid>；
+      # 镜像里 /home/node 属 uid 1000，PUID≠1000 的部署（如 CI/e2e）建不了，gateway 健康检查失败，
+      # 连带报 shared state database is unreadable。指进已声明 PUID 属主的数据卷即可。
+      XDG_CACHE_HOME: /home/node/.openclaw/cache
       OPENCLAW_HOME: /home/node
       OPENCLAW_STATE_DIR: /home/node/.openclaw
       OPENCLAW_CONFIG_DIR: /home/node/.openclaw
