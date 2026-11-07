@@ -100,7 +100,9 @@ configs:
           openclaw plugins install npm:@openclaw/matrix@2026.11.1 --pin --force --accept-capabilities
         crypto_script="$$(find /home/node/.openclaw/npm/projects -type f -path '*/@matrix-org/matrix-sdk-crypto-nodejs/download-lib.js' -print -quit)"
         test -n "$$crypto_script"
-        node "$$crypto_script"
+        # 23.6MB 的平台库从 GitHub release 拉，分流机上这条链路会瞬时断流（ECONNRESET，
+        # 上游 download-lib.js 的 catch 还会把真实错误吞成 ReferenceError）；重试三次。
+        node "$$crypto_script" || { sleep 5; node "$$crypto_script" || { sleep 15; node "$$crypto_script"; }; }
         crypto_dir="$$(dirname "$$crypto_script")"
         test -n "$$(find "$$crypto_dir" -maxdepth 1 -name '*.node' -print -quit)"
         touch /home/node/.openclaw/.matrix-plugin-installed
