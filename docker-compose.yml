@@ -23,7 +23,8 @@ services:
       MATRIX_HOMESERVER: ${WONTON_MATRIX_HOMESERVER}
       MATRIX_USER_ID: ${WONTON_MATRIX_USER_ID}
       MATRIX_ACCESS_TOKEN: ${WONTON_MATRIX_ACCESS_TOKEN}
-      MATRIX_OWNER: ${WONTON_MATRIX_OWNER}
+      # 名单变量 0.9 起改叫 WONTON_MATRIX_ALLOWED_USERS；旧核心只给旧名。
+      MATRIX_OWNER: ${WONTON_MATRIX_ALLOWED_USERS:-${WONTON_MATRIX_OWNER}}
       MATRIX_DEVICE_NAME: Wonton OpenClaw
     volumes:
       - ${WONTON_BOT_DATA}:/home/node/.openclaw
@@ -60,7 +61,7 @@ services:
       MATRIX_HOMESERVER: ${WONTON_MATRIX_HOMESERVER}
       MATRIX_USER_ID: ${WONTON_MATRIX_USER_ID}
       MATRIX_ACCESS_TOKEN: ${WONTON_MATRIX_ACCESS_TOKEN}
-      MATRIX_OWNER: ${WONTON_MATRIX_OWNER}
+      MATRIX_OWNER: ${WONTON_MATRIX_ALLOWED_USERS:-${WONTON_MATRIX_OWNER}}
       MATRIX_DEVICE_NAME: Wonton OpenClaw
     volumes:
       - ${WONTON_BOT_DATA}:/home/node/.openclaw
@@ -83,6 +84,10 @@ configs:
       export MATRIX_DEVICE_ID="$$(node --input-type=module -e 'const r=await fetch(process.env.MATRIX_HOMESERVER + "/_matrix/client/v3/account/whoami", {headers: {Authorization: "Bearer " + process.env.MATRIX_ACCESS_TOKEN}}); if (!r.ok) throw new Error("whoami HTTP " + r.status); const j=await r.json(); if (!j.device_id) throw new Error("whoami response missing device_id"); process.stdout.write(j.device_id);')"
       test -n "$$MATRIX_DEVICE_ID"
       config=/home/node/.openclaw/openclaw.json
+      # 名单是逗号分隔的一串 MXID（0.9 的一张名单，可能是一个人，也可能是一家人），配置里要的是数组。
+      # 每次启动都重算，家人增减重建容器时配置跟着变；首次写配置和下面的续写补丁都用它。
+      export ALLOW_JSON="$$(node -e 'process.stdout.write(JSON.stringify((process.env.MATRIX_OWNER ?? "").split(",").map((s) => s.trim()).filter(Boolean)))')"
+      test -n "$$ALLOW_JSON"
       mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace
       # 0.1.0 及更早的 init 以 root 跑 npm，会在数据卷（npm/projects）和 npm 缓存（/home/node/.npm）
       # 留下 root 属主文件；0.1.2 起 openclaw CLI 以 PUID:PGID 跑，先纠正属主，否则 npm 报 EACCES。
@@ -154,7 +159,7 @@ configs:
             "network": { "dangerouslyAllowPrivateNetwork": true },
             "dm": {
               "policy": "allowlist",
-              "allowFrom": ["$${MATRIX_OWNER}"],
+              "allowFrom": $${ALLOW_JSON},
               "sessionScope": "per-room",
               "threadReplies": "off"
             },
@@ -181,7 +186,7 @@ configs:
       }
       JSON
       fi
-      node --input-type=module -e 'import fs from "node:fs"; const p="/home/node/.openclaw/openclaw.json"; const c=JSON.parse(fs.readFileSync(p, "utf8")); c.channels ??= {}; c.channels.matrix ??= {}; Object.assign(c.channels.matrix, {homeserver: process.env.MATRIX_HOMESERVER, userId: process.env.MATRIX_USER_ID, accessToken: process.env.MATRIX_ACCESS_TOKEN, deviceId: process.env.MATRIX_DEVICE_ID, deviceName: process.env.MATRIX_DEVICE_NAME}); fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");'
+      node --input-type=module -e 'import fs from "node:fs"; const p="/home/node/.openclaw/openclaw.json"; const c=JSON.parse(fs.readFileSync(p, "utf8")); c.channels ??= {}; c.channels.matrix ??= {}; Object.assign(c.channels.matrix, {homeserver: process.env.MATRIX_HOMESERVER, userId: process.env.MATRIX_USER_ID, accessToken: process.env.MATRIX_ACCESS_TOKEN, deviceId: process.env.MATRIX_DEVICE_ID, deviceName: process.env.MATRIX_DEVICE_NAME}); const dm = (c.channels.matrix.dm ??= {}); dm.policy = "allowlist"; dm.allowFrom = JSON.parse(process.env.ALLOW_JSON); fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");'
       # 每次启动都按 WONTON_MODEL_* 重建模型网关配置，网关被卸掉后不残留旧地址。三个值都非空才算接上网关；
       # base URL 和 key 在配置里只写变量名（OpenClaw 读配置时从环境替换），密钥不落进数据目录。变量为空时
       # 必须删掉引用：OpenClaw 对空值的变量引用按缺失处理，会拒绝启动。
@@ -197,7 +202,7 @@ configs:
 x-wonton:
   spec: "0.4"
   id: ai.openclaw.agent
-  version: 0.1.2
+  version: 0.1.3
   kind: agent
   title: { zh: OpenClaw, en: OpenClaw }
   description:
@@ -219,8 +224,8 @@ x-wonton:
 
       The workspace and OpenClaw state stay in this Bot's data directory. Its built-in shell, filesystem, and other tools execute inside the container without Wonton confirmation cards; they can read and write that Bot data and, when network.egress is granted, reach the Internet or run container-local installers. Wonton MCP tools remain subject to the core's permissions and confirmation rules. The container has no Docker socket, host shell, web entry, public port, or OpenClaw plugin marketplace.
   release_notes:
-    zh: "上游 OpenClaw 升到 2026.11.1：缺陷修复，无破坏性变更，Bot 数据原样保留。模型网关仍是可选的：没接网关时 Agent 照常启动，网关就绪后自动接上。"
-    en: "Upstream OpenClaw bumped to 2026.11.1: bugfix release, no breaking changes, Bot data kept as-is. The model gateway stays optional: the agent starts without one and connects once it is ready."
+    zh: "Bot 的白名单改从核心给的名单读，新版核心可以给多个家人；旧核心照常能装。"
+    en: "The bot's allow list now comes from the core's user list, which newer cores can fill with several family members; still installs on older cores."
   agent:
     protocol: matrix
   bot:
