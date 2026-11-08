@@ -202,7 +202,7 @@ configs:
 x-wonton:
   spec: "0.4"
   id: ai.openclaw.agent
-  version: 0.1.2
+  version: 0.1.3
   kind: agent
   title: { zh: OpenClaw, en: OpenClaw }
   description:
@@ -224,8 +224,8 @@ x-wonton:
 
       The workspace and OpenClaw state stay in this Bot's data directory. Its built-in shell, filesystem, and other tools execute inside the container without Wonton confirmation cards; they can read and write that Bot data and, when network.egress is granted, reach the Internet or run container-local installers. Wonton MCP tools remain subject to the core's permissions and confirmation rules. The container has no Docker socket, host shell, web entry, public port, or OpenClaw plugin marketplace.
   release_notes:
-    zh: "上游 OpenClaw 升到 2026.11.1：缺陷修复，无破坏性变更，Bot 数据原样保留。模型网关仍是可选的：没接网关时 Agent 照常启动，网关就绪后自动接上。"
-    en: "Upstream OpenClaw bumped to 2026.11.1: bugfix release, no breaking changes, Bot data kept as-is. The model gateway stays optional: the agent starts without one and connects once it is ready."
+    zh: "Bot 的白名单改从核心给的名单读，新版核心可以给多个家人；旧核心照常能装。"
+    en: "The bot's allow list now comes from the core's user list, which newer cores can fill with several family members; still installs on older cores."
   agent:
     protocol: matrix
   bot:
