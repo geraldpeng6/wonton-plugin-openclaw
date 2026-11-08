@@ -19,6 +19,10 @@ oc_gw() {
   printf 'wonton-%s--%s--gateway\n' "$inst" "ai-openclaw-agent"
 }
 
+marker_file() { # SMOKE_STATE 在套件里是状态目录（e2e 传的是标记文件本身），标记放对应路径
+  if [[ -d "$SMOKE_STATE" ]]; then printf '%s' "$SMOKE_STATE/openclaw-marker"; else printf '%s' "${SMOKE_STATE}.marker"; fi
+}
+
 data_write() {
   local gw user marker out
   gw="$(oc_gw)" || return 1
@@ -27,14 +31,14 @@ data_write() {
   out="$(docker exec ${user:+-u "$user"} "$gw" sh -c 'printf %s "$1" > /home/node/.openclaw/workspace/smoke-data.txt && cat /home/node/.openclaw/workspace/smoke-data.txt' sh "$marker")" ||
     { echo "写不进工作区（容器 $gw）：$out"; return 1; }
   [[ "$out" == "$marker" ]] || { echo "写进去的内容不对：$out"; return 1; }
-  printf '%s' "$marker" >"$SMOKE_STATE"
+  printf '%s' "$marker" >"$(marker_file)"
 }
 
 data_check() {
   local gw user marker out
   gw="$(oc_gw)" || return 1
   user="$(docker inspect -f '{{.Config.User}}' "$gw")"
-  marker="$(cat "$SMOKE_STATE")"
+  marker="$(cat "$(marker_file)")"
   out="$(docker exec ${user:+-u "$user"} "$gw" cat /home/node/.openclaw/workspace/smoke-data.txt 2>&1)" ||
     { echo "工作区文件读不到（数据目录没保住？）：$out"; return 1; }
   [[ "$out" == "$marker" ]] || { echo "标记对不上：期待 $marker，看到 $out"; return 1; }
