@@ -27,7 +27,7 @@ services:
       MATRIX_DEVICE_NAME: Wonton OpenClaw
     volumes:
       - ${WONTON_BOT_DATA}:/home/node/.openclaw
-      # 帮助 skill（ADR-0034）要落进 App 数据的 skills 目录；gateway 对它是只读挂载，由 init 以 root 写入。
+      # 帮助 skill 要落进 App 数据的 skills 目录；gateway 对它是只读挂载，由 init 以 root 写入。
       - ${WONTON_APP_DATA}/skills:/wonton-skills
     configs:
       - source: init
@@ -191,7 +191,7 @@ configs:
       # 必须删掉引用：OpenClaw 对空值的变量引用按缺失处理，会拒绝启动。
       node --input-type=module -e 'import fs from "node:fs"; const p="/home/node/.openclaw/openclaw.json"; const c=JSON.parse(fs.readFileSync(p, "utf8")); const hasGateway = [process.env.WONTON_MODEL_BASE_URL, process.env.WONTON_MODEL_API_KEY, process.env.WONTON_MODEL_DEFAULT].every((v) => (v ?? "").trim() !== ""); if (hasGateway) { c.models = { mode: "merge", providers: { ...c.models?.providers, wonton: { baseUrl: "$${WONTON_MODEL_BASE_URL}", apiKey: "$${WONTON_MODEL_API_KEY}", api: "openai-completions", models: [{ id: "$${WONTON_MODEL_DEFAULT}", name: "Wonton default", input: ["text"], contextWindow: 128000, maxTokens: 8192, compat: { supportsTools: true } }] } } }; c.agents ??= {}; c.agents.defaults ??= {}; c.agents.defaults.model = { primary: "wonton/$${WONTON_MODEL_DEFAULT}" }; } else { if (c.models?.providers) delete c.models.providers.wonton; if (c.agents?.defaults?.model?.primary?.startsWith("wonton/")) delete c.agents.defaults.model; } fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");'
       openclaw config validate
-      # 帮助 skill 是 wonton-docs 的指路条（ADR-0034），放进 App 数据的 skills 目录，gateway 经只读挂载读它。
+      # 帮助 skill 是 wonton-docs 的指路条，放进 App 数据的 skills 目录，gateway 经只读挂载读它。
       install -D -m 0644 /seed/wonton-help/SKILL.md /wonton-skills/wonton-help/SKILL.md
       chown -R "$$PUID:$$PGID" /wonton-skills
       chown -R "$$PUID:$$PGID" /home/node/.openclaw
