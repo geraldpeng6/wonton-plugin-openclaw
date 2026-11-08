@@ -16,7 +16,7 @@ oc_gw() {
     inst="${SMOKE_BASE#http://}"; inst="${inst%%.*}"
   fi
   [[ -n "$inst" ]] || { echo "拿不到实例名（SMOKE_INSTANCE/SMOKE_BASE 都没有）" >&2; return 1; }
-  printf 'wonton-%s--%s--gateway\n' "$inst" "ai-openclaw-agent"
+  printf 'wonton-%s--%s--gateway--default\n' "$inst" "ai-openclaw-agent"
 }
 
 marker_file() { # SMOKE_STATE 在套件里是状态目录（e2e 传的是标记文件本身），标记放对应路径
