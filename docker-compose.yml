@@ -159,7 +159,7 @@ configs:
             "network": { "dangerouslyAllowPrivateNetwork": true },
             "dm": {
               "policy": "allowlist",
-              "allowFrom": [$${ALLOW_JSON}],
+              "allowFrom": $${ALLOW_JSON},
               "sessionScope": "per-room",
               "threadReplies": "off"
             },
