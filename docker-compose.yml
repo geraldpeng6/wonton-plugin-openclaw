@@ -4,7 +4,7 @@
 # Agent 照常启动，网关就绪后核心按新变量重建容器即自动接上。
 services:
   init:
-    image: ghcr.io/openclaw/openclaw:2026.11.1@sha256:db0e0809fbd0df375445e9eea8daf2a278ac7ac3a263fa6bfce8fb344ad3ad77
+    image: ghcr.io/openclaw/openclaw:2026.11.2@sha256:55294524dac01370288fb4beb16714b60f75cec0e96e07e662054cf29900965a
     # npm 插件安装会对受管文件执行 fchmod；init 只在容器内以 root 完成安装和权限交接，gateway 仍以主人 uid 运行。
     user: "0:0"
     entrypoint: ["/bin/sh", "/seed/init.sh"]
@@ -37,7 +37,7 @@ services:
     restart: "no"
 
   gateway:
-    image: ghcr.io/openclaw/openclaw:2026.11.1@sha256:db0e0809fbd0df375445e9eea8daf2a278ac7ac3a263fa6bfce8fb344ad3ad77
+    image: ghcr.io/openclaw/openclaw:2026.11.2@sha256:55294524dac01370288fb4beb16714b60f75cec0e96e07e662054cf29900965a
     user: "${PUID}:${PGID}"
     depends_on:
       init:
