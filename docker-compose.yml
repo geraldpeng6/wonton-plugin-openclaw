@@ -1,5 +1,6 @@
 # OpenClaw：自带 Matrix 客户端、模型网关适配和 MCP 客户端的 Agent。只有 gateway 常驻；init
-# 在首次启动时安装固定版本的官方 Matrix 插件并写入配置，安装状态和加密设备都留在 Bot 数据目录。
+# 在首次启动时安装固定版本的官方 Matrix 插件、写入配置并初始化交叉签名（恢复密钥复制到固定路径，
+# 交核心收存），安装状态和加密设备都留在 Bot 数据目录。
 # 模型网关是可选的：init 每次启动按 WONTON_MODEL_* 有没有值写入或移除网关配置，没有网关时
 # Agent 照常启动，网关就绪后核心按新变量重建容器即自动接上。
 services:
@@ -194,6 +195,33 @@ configs:
       # 帮助 skill 是 wonton-docs 的指路条，放进 App 数据的 skills 目录，gateway 经只读挂载读它。
       install -D -m 0644 /seed/wonton-help/SKILL.md /wonton-skills/wonton-help/SKILL.md
       chown -R "$$PUID:$$PGID" /wonton-skills
+      # 交叉签名只在首次安装初始化（一次性标记在数据目录）：官方要求 setup 在网关停着时跑，init 阶段正好
+      # 满足。setup 建密钥库、上传交叉签名公钥、给本设备签名并开房间密钥备份；之后网关每次启动还有自己的
+      # 保守 bootstrap。重装和重建都跳过：本地密钥丢了时不动服务端的密钥库，留给恢复密钥（见 secrets）去恢复。
+      chown -R "$$PUID:$$PGID" /home/node/.openclaw
+      if [ ! -s /home/node/.openclaw/.matrix-crypto-bootstrapped ]; then
+        # 缓存根指进数据卷（同 gateway 的做法）：root 跑过 config validate 后，默认的
+        # /home/node/.cache 已被 root 的 0700 私有目录占住，PUID 进不去，CLI 会拒读配置。
+        # 本地数据是新的而服务端已有交叉签名身份时（重装、数据丢失后），替换身份要 UIA 而机器人只有
+        # 令牌（Tuwunel 只对首次上传免 UIA，MSC3967），setup 解不开旧密钥库就失败：按上游设计不堵
+        # 安装，网关照常启动，设备保持未验证，等核心保管的恢复密钥来恢复（见 secrets；恢复命令
+        # printf '%s\n' "$$KEY" | openclaw matrix verify bootstrap --recovery-key-stdin）。不写标记，
+        # 下次重建容器再试；首次安装是全新账号，一次就能建好。
+        if XDG_CACHE_HOME=/home/node/.openclaw/cache setpriv --reuid="$PUID" --regid="$PGID" --clear-groups openclaw matrix encryption setup; then
+          printf '%s\n' "bootstrapped" > /home/node/.openclaw/.matrix-crypto-bootstrapped
+        else
+          echo "matrix encryption setup failed; starting unverified until the recovery key restores trust" >&2
+        fi
+      fi
+      # 恢复密钥交核心保管。2026.11.2 把密钥存进账号的 SQLite 状态库，不落散文件，用官方 CLI 读出来写成
+      # 固定路径的明文（标准 Matrix 恢复密钥格式），给清单的 collect 收存；每次启动都重取，密钥轮换后
+      # 核心下次核对拿到新值。取不到（setup 没成功、状态库还没有密钥）时如实跳过并清掉旧存根，不堵安装。
+      mkdir -p /home/node/.openclaw/matrix
+      XDG_CACHE_HOME=/home/node/.openclaw/cache setpriv --reuid="$PUID" --regid="$PGID" --clear-groups \
+        openclaw matrix verify status --include-recovery-key --json >/tmp/oc-recovery.json 2>/dev/null \
+        && node -e 'const j=JSON.parse(require("fs").readFileSync("/tmp/oc-recovery.json","utf8")); const find=(o)=>{if(!o||typeof o!=="object")return null; if(typeof o.recoveryKey==="string"&&o.recoveryKey.trim())return o.recoveryKey.trim(); for(const v of Object.values(o)){const r=find(v); if(r)return r;} return null;}; const k=find(j); if(!k) process.exit(3); require("fs").writeFileSync("/home/node/.openclaw/matrix/recovery-key.txt", k + "\n", {mode: 0o600});' \
+        || { echo "matrix recovery key not available this start; retry on next rebuild" >&2; rm -f /home/node/.openclaw/matrix/recovery-key.txt; }
+      rm -f /tmp/oc-recovery.json
       chown -R "$$PUID:$$PGID" /home/node/.openclaw
   help-skill:
     file: wonton-help/SKILL.md
@@ -201,7 +229,7 @@ configs:
 x-wonton:
   spec: "0.9"
   id: ai.openclaw.agent
-  version: 0.1.4
+  version: 0.2.0
   kind: agent
   title: { zh: OpenClaw, en: OpenClaw }
   description:
@@ -215,22 +243,26 @@ x-wonton:
   tags: { zh: [AI], en: [AI] }
   about:
     zh: |
-      OpenClaw 是一个住在云吞里的 Agent。它只接核心分配的 Matrix 身份，只加入主人创建的加密私聊；云吞工具经 MCP 总线访问。接了模型网关时模型默认走网关；没接网关时 Agent 照常启动，但还没有可用模型，发消息会得到模型未授权的报错，网关就绪后核心重建容器即自动接上。
+      OpenClaw 是一个住在云吞里的 Agent。它只接核心分配的 Matrix 身份，只加入主人创建的加密私聊；云吞工具经 MCP 总线访问。接了模型网关时模型默认走网关；没接网关时 Agent 照常启动，但还没有可用模型，发消息会得到模型未授权的报错，网关就绪后核心重建容器即自动接上。Bot 的设备经交叉签名自验证，恢复密钥交云吞保管，Bot 数据丢了还能找回加密历史。
 
       容器里的工作区和 OpenClaw 状态都在这个 Bot 的数据目录中。Agent 自带的 shell、文件和其他工具直接在容器内执行，不经过云吞确认卡片；它们能读写 Bot 数据目录，并在 network.egress 允许的范围内访问外网或运行容器内安装程序。云吞 MCP 工具仍按核心的权限和确认规则执行。容器没有 Docker socket、宿主 shell、网页入口、对外端口或 OpenClaw 插件市场入口。
     en: |
-      OpenClaw is an Agent living in Wonton. It uses only the Matrix identity assigned by the core and joins the encrypted DM created for the owner; Wonton tools go through the MCP bus. When the model gateway is connected, models go through it by default; without a gateway the agent still starts, but no model is available yet — prompts fail with a model-authorization error, and once the gateway is ready the core rebuilds the container to connect it.
+      OpenClaw is an Agent living in Wonton. It uses only the Matrix identity assigned by the core and joins the encrypted DM created for the owner; Wonton tools go through the MCP bus. When the model gateway is connected, models go through it by default; without a gateway the agent still starts, but no model is available yet — prompts fail with a model-authorization error, and once the gateway is ready the core rebuilds the container to connect it. The bot's device is self-verified via cross-signing, and the recovery key is kept by Wonton so encrypted history survives Bot data loss.
 
       The workspace and OpenClaw state stay in this Bot's data directory. Its built-in shell, filesystem, and other tools execute inside the container without Wonton confirmation cards; they can read and write that Bot data and, when network.egress is granted, reach the Internet or run container-local installers. Wonton MCP tools remain subject to the core's permissions and confirmation rules. The container has no Docker socket, host shell, web entry, public port, or OpenClaw plugin marketplace.
   release_notes:
-    zh: "Bot 的白名单改从核心给的名单读，可以给多个家人；需要插件规范 0.9。"
-    en: "The bot's allow list now comes from the core's user list, which can hold several family members; requires spec 0.9."
+    zh: "Bot 设备在首次启动时完成交叉签名自验证，恢复密钥交给云吞保管；Bot 数据丢失后可用它找回设备信任和加密历史。"
+    en: "The bot's device now self-verifies via cross-signing on first start, and the recovery key is handed to Wonton; it restores device trust and encrypted history after Bot data loss."
   agent:
     protocol: matrix
   bot:
     display_name: { zh: OpenClaw, en: OpenClaw }
   bots:
     services: [init, gateway]
+  secrets:
+    # OpenClaw 首启自建交叉签名，恢复密钥由 init 从状态库读出写到固定路径；交给核心保管，Bot 数据丢了还能恢复。
+    matrix_recovery_key:
+      collect: { service: gateway, path: /home/node/.openclaw/matrix/recovery-key.txt }
   permissions:
     - models
     - matrix.bot
