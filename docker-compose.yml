@@ -231,10 +231,10 @@ x-wonton:
   id: ai.openclaw.agent
   version: 0.2.0
   kind: agent
-  title: { zh: OpenClaw, en: OpenClaw }
+  title: { zh: AI 管家（OpenClaw）, en: All-Purpose Bot (OpenClaw) }
   description:
-    zh: 通过加密 Matrix 私聊对话、调用模型并使用云吞工具的 Agent
-    en: Agent that chats over encrypted Matrix DMs, reaches models, and uses Wonton tools
+    zh: 开源社区很火的另一位万能管家：在加密私聊里帮你查资料、用你装的应用提供的工具、整理它自己的文件，它的数据丢了也能找回聊天记录。适合已经在用或想试试 OpenClaw 的人。
+    en: "Another all-round butler, popular in the open-source community: in an encrypted private chat it researches things, uses the tools your apps provide and manages its own files, and your chat history can be recovered even if its data is lost. For people who use OpenClaw already or want to try it."
   icon: icon.svg
   notices: [NOTICE]
   author: { name: Wonton plugin authors }
@@ -243,11 +243,11 @@ x-wonton:
   tags: { zh: [AI], en: [AI] }
   about:
     zh: |
-      OpenClaw 是一个住在云吞里的 Agent。它只接核心分配的 Matrix 身份，只加入主人创建的加密私聊；云吞工具经 MCP 总线访问。接了模型网关时模型默认走网关；没接网关时 Agent 照常启动，但还没有可用模型，发消息会得到模型未授权的报错，网关就绪后核心重建容器即自动接上。Bot 的设备经交叉签名自验证，恢复密钥交云吞保管，Bot 数据丢了还能找回加密历史。
+      OpenClaw 是开源社区很受欢迎的 AI 助手，住在云吞为它建的加密私聊里：帮你查资料、用你装的应用提供的工具、读写它自己地盘里的文件。它的身份由云吞签发并核验，恢复密钥也交给云吞保管，就算它的数据丢了也能找回加密的聊天记录。默认用模型设置里配好的 AI；还没配好时它照样能启动，只是暂时没有 AI 可用，发消息会提示模型未授权，配好后自动接上。
 
       容器里的工作区和 OpenClaw 状态都在这个 Bot 的数据目录中。Agent 自带的 shell、文件和其他工具直接在容器内执行，不经过云吞确认卡片；它们能读写 Bot 数据目录，并在 network.egress 允许的范围内访问外网或运行容器内安装程序。云吞 MCP 工具仍按核心的权限和确认规则执行。容器没有 Docker socket、宿主 shell、网页入口、对外端口或 OpenClaw 插件市场入口。
     en: |
-      OpenClaw is an Agent living in Wonton. It uses only the Matrix identity assigned by the core and joins the encrypted DM created for the owner; Wonton tools go through the MCP bus. When the model gateway is connected, models go through it by default; without a gateway the agent still starts, but no model is available yet — prompts fail with a model-authorization error, and once the gateway is ready the core rebuilds the container to connect it. The bot's device is self-verified via cross-signing, and the recovery key is kept by Wonton so encrypted history survives Bot data loss.
+      OpenClaw is a popular open-source AI assistant living in the encrypted private chat Wonton creates for it: it researches things, uses the tools your apps provide and reads and writes files in its own space. Its identity is issued and verified by Wonton, and Wonton keeps its recovery key, so encrypted chat history survives even if its data is lost. It uses the AI set up in Models by default; until that's set up it still starts but has no AI to use — messages get a model-authorization notice, and it connects automatically once Models is ready.
 
       The workspace and OpenClaw state stay in this Bot's data directory. Its built-in shell, filesystem, and other tools execute inside the container without Wonton confirmation cards; they can read and write that Bot data and, when network.egress is granted, reach the Internet or run container-local installers. Wonton MCP tools remain subject to the core's permissions and confirmation rules. The container has no Docker socket, host shell, web entry, public port, or OpenClaw plugin marketplace.
   release_notes:
