@@ -1,6 +1,6 @@
 # OpenClaw
 
-开发流程见[插件开发指南](https://github.com/geraldpeng6/wonton-docs/blob/main/develop.md)。
+开发流程见[插件开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md)。
 
 OpenClaw 是一个住在云吞里的 Agent：用核心分配的 Matrix 身份和主人聊天，经 Wonton MCP 总线调用核心的只读工具。接了模型网关时模型默认走网关；模型网关是可选的，没接时 Agent 照常启动，只是还没有可用模型，发消息会得到模型未授权的报错（OpenClaw 回落到它内置的默认服务商），网关就绪后核心重建容器即自动接上。OpenClaw 的官方账号登录要在它自己的命令行里完成（Matrix 渠道没有聊天内的登录命令，容器用户也到不了终端），所以没有网关时没有替代的模型来源。
 
