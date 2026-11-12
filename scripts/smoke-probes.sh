@@ -1,8 +1,18 @@
 # OpenClaw 是 Agent，不提供网页入口、应用账号体系或插件自己的 MCP 服务。
 # shellcheck shell=bash disable=SC2034
-# 通用插件冒烟只验证清单能装上；Matrix 加密、模型和 Wonton MCP 在专项验收中实测。
+# 网页、身份、插件工具三项不适用；Agent 本身（加密私聊、模型回答、Wonton MCP、名单外不应答）在附加检查里实测。
 IDENTITY_NA=1
-SMOKE_NOTE="OpenClaw 没有网页入口、应用账号体系或插件自己的 MCP 服务；网页、主人身份、插件工具三项不适用。专项验收验证加密 Matrix 私聊、模型回答和 Wonton MCP 只读工具。"
+SMOKE_NOTE="OpenClaw 没有网页入口、应用账号体系或插件自己的 MCP 服务；网页、主人身份、插件工具三项不适用。"
+
+# Agent 的附加检查（助手见套件的 scripts/agent-probes.sh）。OpenClaw 自带的 shell、文件工具在容器里直接跑，
+# 不经确认卡片，也没有 /wonton interrupt，这两项不测。
+EXTRA_TIMEOUT=1800
+extra_check() {
+  agent_check_chat '请用一句话回答：Agent 冒烟加密链路。'
+  agent_check_model
+  agent_check_mcp_bus
+  agent_check_outsider
+}
 
 # 保数据：Agent 的用户数据是 Bot 数据目录（会话、加密密钥、工作区）。没有网页和应用 API，加密私聊要
 # 专用 Matrix 客户端（专项冒烟管）；这里经应用容器把带随机标记的文件写进工作区——agent 的 shell 和
