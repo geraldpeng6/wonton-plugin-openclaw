@@ -2,9 +2,9 @@
 
 开发流程见[插件开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md)。
 
-OpenClaw 是一个住在云吞里的 Agent：用核心分配的 Matrix 身份和主人聊天，经 Wonton MCP 总线调用核心的只读工具。接了模型网关时模型默认走网关；模型网关是可选的，没接时 Agent 照常启动，只是还没有可用模型，发消息会得到模型未授权的报错（OpenClaw 回落到它内置的默认服务商），网关就绪后核心重建容器即自动接上。OpenClaw 的官方账号登录要在它自己的命令行里完成（Matrix 渠道没有聊天内的登录命令，容器用户也到不了终端），所以没有网关时没有替代的模型来源。
+OpenClaw 是一个住在云吞里的 Agent：用核心分配的 Matrix 身份和主人聊天，经 Wonton MCP 总线调用核心的只读工具。默认使用模型设置里的模型；网关未就绪时保留默认选择，不自动换成其他服务，网关就绪后核心重建容器即可接上。已选择的其他模型不会因为网关重建而被改掉。
 
-插件使用 OpenClaw 官方多架构镜像 `ghcr.io/openclaw/openclaw:2026.11.2`。首次启动由一次性 `init` 服务安装固定版本的官方 `@openclaw/matrix` 插件；OpenClaw 的受管 npm 安装会跳过生命周期脚本，因此 init 随后显式运行 Matrix crypto 的官方 `download-lib.js`，并要求对应平台的 `.node` 原生绑定已经落盘。安装包、原生绑定和 Matrix 加密状态都写在 Bot 数据目录，重启或重建容器不会重新生成设备密钥。
+插件使用 OpenClaw 官方多架构镜像 `ghcr.io/openclaw/openclaw:2026.11.3`。首次启动由一次性 `init` 服务安装固定版本的官方 `@openclaw/matrix` 插件；OpenClaw 的受管 npm 安装会跳过生命周期脚本，因此 init 随后显式运行 Matrix crypto 的官方 `download-lib.js`，并要求对应平台的 `.node` 原生绑定已经落盘。安装包、原生绑定和 Matrix 加密状态都写在 Bot 数据目录，重启或重建容器不会重新生成设备密钥。
 init 还会用核心注入的访问令牌调用 Matrix `/_matrix/client/v3/account/whoami`，把返回的 `device_id` 写入配置；这样加密客户端使用的设备身份与令牌一致，重启时可继续解密。
 
 交叉签名在首次安装时由 init 以官方 `openclaw matrix encryption setup` 初始化（[官方加密文档](https://docs.openclaw.ai/channels/matrix/encryption)要求网关停着时执行，init 阶段正好满足）：建立密钥库、上传交叉签名公钥、给本设备签名并开启房间密钥备份，主人的客户端因此不显示未验证设备。之后交由 OpenClaw 网关自己每次启动的保守 bootstrap 维护；重装、重建容器都跳过 init 这一步。
