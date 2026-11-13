@@ -1,8 +1,7 @@
 # OpenClaw：自带 Matrix 客户端、模型网关适配和 MCP 客户端的 Agent。只有 gateway 常驻；init
 # 在首次启动时安装固定版本的官方 Matrix 插件、写入配置并初始化交叉签名（恢复密钥复制到固定路径，
 # 交核心收存），安装状态和加密设备都留在 Bot 数据目录。
-# 模型网关是可选的：init 每次启动按 WONTON_MODEL_* 有没有值写入或移除网关配置，没有网关时
-# Agent 照常启动，网关就绪后核心按新变量重建容器即自动接上。
+# 模型默认走模型网关（magpie）；网关没接上时保留默认入口，不回退到其他服务商。
 services:
   init:
     image: ghcr.io/openclaw/openclaw:2026.11.3@sha256:e73f689d663567f0fe3c5a85c54beb3e102dc21f0814bf375e9039ee2d2df51b
@@ -33,6 +32,8 @@ services:
     configs:
       - source: init
         target: /seed/init.sh
+      - source: model-config
+        target: /seed/model-config.cjs
       - source: help-skill
         target: /seed/wonton-help/SKILL.md
     restart: "no"
@@ -187,10 +188,8 @@ configs:
       JSON
       fi
       node --input-type=module -e 'import fs from "node:fs"; const p="/home/node/.openclaw/openclaw.json"; const c=JSON.parse(fs.readFileSync(p, "utf8")); c.channels ??= {}; c.channels.matrix ??= {}; Object.assign(c.channels.matrix, {homeserver: process.env.MATRIX_HOMESERVER, userId: process.env.MATRIX_USER_ID, accessToken: process.env.MATRIX_ACCESS_TOKEN, deviceId: process.env.MATRIX_DEVICE_ID, deviceName: process.env.MATRIX_DEVICE_NAME}); const dm = (c.channels.matrix.dm ??= {}); dm.policy = "allowlist"; dm.allowFrom = JSON.parse(process.env.ALLOW_JSON); fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");'
-      # 每次启动都按 WONTON_MODEL_* 重建模型网关配置，网关被卸掉后不残留旧地址。三个值都非空才算接上网关；
-      # base URL 和 key 在配置里只写变量名（OpenClaw 读配置时从环境替换），密钥不落进数据目录。变量为空时
-      # 必须删掉引用：OpenClaw 对空值的变量引用按缺失处理，会拒绝启动。
-      node --input-type=module -e 'import fs from "node:fs"; const p="/home/node/.openclaw/openclaw.json"; const c=JSON.parse(fs.readFileSync(p, "utf8")); const hasGateway = [process.env.WONTON_MODEL_BASE_URL, process.env.WONTON_MODEL_API_KEY, process.env.WONTON_MODEL_DEFAULT].every((v) => (v ?? "").trim() !== ""); if (hasGateway) { c.models = { mode: "merge", providers: { ...c.models?.providers, wonton: { baseUrl: "$${WONTON_MODEL_BASE_URL}", apiKey: "$${WONTON_MODEL_API_KEY}", api: "openai-completions", models: [{ id: "$${WONTON_MODEL_DEFAULT}", name: "Wonton default", input: ["text"], contextWindow: 128000, maxTokens: 8192, compat: { supportsTools: true } }] } } }; c.agents ??= {}; c.agents.defaults ??= {}; c.agents.defaults.model = { primary: "wonton/$${WONTON_MODEL_DEFAULT}" }; } else { if (c.models?.providers) delete c.models.providers.wonton; if (c.agents?.defaults?.model?.primary?.startsWith("wonton/")) delete c.agents.defaults.model; } fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");'
+      # 网关地址和凭据只保存变量引用；网关未接上时保留不可用的默认入口。
+      node /seed/model-config.cjs
       openclaw config validate
       # 帮助 skill 是 wonton-docs 的指路条，放进 App 数据的 skills 目录，gateway 经只读挂载读它。
       install -D -m 0644 /seed/wonton-help/SKILL.md /wonton-skills/wonton-help/SKILL.md
@@ -223,13 +222,15 @@ configs:
         || { echo "matrix recovery key not available this start; retry on next rebuild" >&2; rm -f /home/node/.openclaw/matrix/recovery-key.txt; }
       rm -f /tmp/oc-recovery.json
       chown -R "$$PUID:$$PGID" /home/node/.openclaw
+  model-config:
+    file: ./model-config.cjs
   help-skill:
     file: wonton-help/SKILL.md
 
 x-wonton:
   spec: "0.9"
   id: ai.openclaw.agent
-  version: 0.2.0
+  version: 0.2.1
   kind: agent
   title: { zh: AI 管家（OpenClaw）, en: All-Purpose Bot (OpenClaw) }
   description:
@@ -243,16 +244,18 @@ x-wonton:
   tags: { zh: [AI], en: [AI] }
   about:
     zh: |
-      OpenClaw 是开源社区很受欢迎的 AI 助手，住在云吞为它建的加密私聊里：帮你查资料、用你装的应用提供的工具、读写它自己地盘里的文件。它的身份由云吞签发并核验，恢复密钥也交给云吞保管，就算它的数据丢了也能找回加密的聊天记录。默认用模型设置里配好的 AI；还没配好时它照样能启动，只是暂时没有 AI 可用，发消息会提示模型未授权，配好后自动接上。
+      OpenClaw 是开源社区很受欢迎的 AI 助手，住在云吞为它建的加密私聊里：帮你查资料、用你装的应用提供的工具、读写它自己地盘里的文件。它的身份由云吞签发并核验，恢复密钥也交给云吞保管，就算它的数据丢了也能找回加密的聊天记录。默认用模型设置里配好的 AI；连接还没准备好时请检查模型设置，配好后会自动接上。
 
       容器里的工作区和 OpenClaw 状态都在这个 Bot 的数据目录中。Agent 自带的 shell、文件和其他工具直接在容器内执行，不经过云吞确认卡片；它们能读写 Bot 数据目录，并在 network.egress 允许的范围内访问外网或运行容器内安装程序。云吞 MCP 工具仍按核心的权限和确认规则执行。容器没有 Docker socket、宿主 shell、网页入口、对外端口或 OpenClaw 插件市场入口。
     en: |
-      OpenClaw is a popular open-source AI assistant living in the encrypted private chat Wonton creates for it: it researches things, uses the tools your apps provide and reads and writes files in its own space. Its identity is issued and verified by Wonton, and Wonton keeps its recovery key, so encrypted chat history survives even if its data is lost. It uses the AI set up in Models by default; until that's set up it still starts but has no AI to use — messages get a model-authorization notice, and it connects automatically once Models is ready.
+      OpenClaw is a popular open-source AI assistant living in the encrypted private chat Wonton creates for it: it researches things, uses the tools your apps provide and reads and writes files in its own space. Its identity is issued and verified by Wonton, and Wonton keeps its recovery key, so encrypted chat history survives even if its data is lost. It uses the AI set up in Models by default; if the connection isn't ready, check Models and it will connect once ready.
 
       The workspace and OpenClaw state stay in this Bot's data directory. Its built-in shell, filesystem, and other tools execute inside the container without Wonton confirmation cards; they can read and write that Bot data and, when network.egress is granted, reach the Internet or run container-local installers. Wonton MCP tools remain subject to the core's permissions and confirmation rules. The container has no Docker socket, host shell, web entry, public port, or OpenClaw plugin marketplace.
   release_notes:
-    zh: "Bot 设备在首次启动时完成交叉签名自验证，恢复密钥交给云吞保管；Bot 数据丢失后可用它找回设备信任和加密历史。"
-    en: "The bot's device now self-verifies via cross-signing on first start, and the recovery key is handed to Wonton; it restores device trust and encrypted history after Bot data loss."
+    zh: "默认使用模型设置里的 AI；连接未准备好时不再偷偷换到其他服务。"
+    zh-Hant: "預設使用模型設定裡的 AI；連線未準備好時不再偷偷換到其他服務。"
+    en: "Uses Models by default instead of silently switching services when the connection isn't ready."
+    ja: "既定ではモデル設定を使い、接続の準備ができていないときに別のサービスへ自動で切り替えません。"
   agent:
     protocol: matrix
   bot:
