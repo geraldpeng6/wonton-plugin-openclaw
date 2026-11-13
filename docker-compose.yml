@@ -34,6 +34,8 @@ services:
         target: /seed/init.sh
       - source: model-config
         target: /seed/model-config.cjs
+      - source: model-hint
+        target: /seed/wonton-model-hint.mjs
       - source: help-skill
         target: /seed/wonton-help/SKILL.md
     restart: "no"
@@ -67,6 +69,9 @@ services:
     volumes:
       - ${WONTON_BOT_DATA}:/home/node/.openclaw
       - ${WONTON_APP_DATA}/skills:/home/node/.agents/skills:ro
+    configs:
+      - source: model-hint
+        target: /seed/wonton-model-hint.mjs
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18789/readyz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -224,6 +229,8 @@ configs:
       chown -R "$$PUID:$$PGID" /home/node/.openclaw
   model-config:
     file: ./model-config.cjs
+  model-hint:
+    file: ./wonton-model-hint.mjs
   help-skill:
     file: wonton-help/SKILL.md
 
@@ -252,10 +259,10 @@ x-wonton:
 
       The workspace and OpenClaw state stay in this Bot's data directory. Its built-in shell, filesystem, and other tools execute inside the container without Wonton confirmation cards; they can read and write that Bot data and, when network.egress is granted, reach the Internet or run container-local installers. Wonton MCP tools remain subject to the core's permissions and confirmation rules. The container has no Docker socket, host shell, web entry, public port, or OpenClaw plugin marketplace.
   release_notes:
-    zh: "默认使用模型设置里的 AI；连接未准备好时不再偷偷换到其他服务。"
-    zh-Hant: "預設使用模型設定裡的 AI；連線未準備好時不再偷偷換到其他服務。"
-    en: "Uses Models by default instead of silently switching services when the connection isn't ready."
-    ja: "既定ではモデル設定を使い、接続の準備ができていないときに別のサービスへ自動で切り替えません。"
+    zh: "默认使用模型设置里的 AI；连接没准备好时会提醒你检查。"
+    zh-Hant: "預設使用模型設定裡的 AI；連線沒準備好時會提醒你檢查。"
+    en: "Uses Models by default and lets you know when the connection is not ready."
+    ja: "既定ではモデル設定を使い、接続の準備ができていないときは確認を促します。"
   agent:
     protocol: matrix
   bot:

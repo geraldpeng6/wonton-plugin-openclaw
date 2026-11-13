@@ -13,12 +13,30 @@ config.agents.defaults ??= {};
 const defaults = config.agents.defaults;
 const selected = typeof defaults.model === "string" ? defaults.model : defaults.model?.primary;
 const usesGateway = !selected || selected.startsWith("wonton/");
-const allow = new Set(["wonton/*"]);
-for (const profile of Object.values(config.auth?.profiles ?? {})) {
-  if (profile.mode === "oauth" && profile.provider) allow.add(`${profile.provider}/*`);
+const hasConfiguredPolicy = Array.isArray(defaults.modelPolicy?.allow);
+const allow = new Set(hasConfiguredPolicy ? defaults.modelPolicy.allow : ["wonton/*"]);
+allow.add("wonton/*");
+if (!hasConfiguredPolicy) {
+  for (const profile of Object.values(config.auth?.profiles ?? {})) {
+    if (profile.mode === "oauth" && profile.provider) allow.add(`${profile.provider}/*`);
+  }
 }
-if (selected && !usesGateway) allow.add(selected);
+if (!hasConfiguredPolicy && selected && !usesGateway) allow.add(selected);
 defaults.modelPolicy = { ...defaults.modelPolicy, allow: [...allow] };
+
+const pluginId = "wonton-model-hint";
+const pluginPath = "/seed/wonton-model-hint.mjs";
+config.plugins ??= {};
+if (Array.isArray(config.plugins.allow) && !config.plugins.allow.includes(pluginId)) {
+  config.plugins.allow.push(pluginId);
+}
+config.plugins.load ??= {};
+config.plugins.load.paths ??= [];
+if (!config.plugins.load.paths.includes(pluginPath)) config.plugins.load.paths.push(pluginPath);
+config.plugins.entries ??= {};
+const plugin = config.plugins.entries[pluginId] ??= {};
+plugin.enabled = true;
+plugin.hooks = { ...plugin.hooks, allowConversationAccess: true };
 
 if (gatewayReady) {
   config.models.providers.wonton = {
